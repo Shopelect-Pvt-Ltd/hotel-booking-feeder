@@ -127,7 +127,7 @@ def processData(booking_data):
                             bcd_booking_details_collection.insert_one(tempdoc)
                             insertedrecord.append(tempdoc)
                     else:
-                        status=data["status"]
+                        status=exiting_data["status"]
                         if "tripDetails" in data  and "tripStatus" in data["tripDetails"] and  data["tripDetails"]["tripStatus"]=="cancelled":
                             status="CANCELLED"
                         result = bcd_booking_details_collection.update_one(
