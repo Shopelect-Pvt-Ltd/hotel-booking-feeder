@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 
 load_dotenv()
 import time
-from state_details import state_details
+from state_mapping_details import state_details
 
 # Setup basic configuration for logging
 logging.basicConfig(
