@@ -155,12 +155,17 @@ def processData(booking_data):
         for i in range(len(data["gstins"])):
             gstin=data["gstins"][i]["gstin"]
             state_code=data["gstins"][i]["stateCd"]
+            address=data["gstins"][i]["address"]
             state_details=state_code_details.get(state_code)
             state_name=state_details["state_name"]
             state_short_name=state_details["short_name"]
-            gstinsdata[state_short_name]={"gstin":gstin,"state":state_name,"state_code":state_code,"state_short_name":state_short_name}
+            if state_short_name in gstinsdata:
+                gstinsdata[state_short_name].append({"gstin":gstin,"state":state_name,"state_code":state_code,"state_short_name":state_short_name,"address":address})
+            else:
+                gstinsdata[state_short_name]=[{"gstin":gstin,"state":state_name,"state_code":state_code,"state_short_name":state_short_name,"address":address}]
             if state_short_name=="UK":
-                gstinsdata["UT"]={"gstin":gstin,"state":state_name,"state_code":state_code,"state_short_name":"UT"}
+                gstinsdata["UT"]=[{"gstin":gstin,"state":state_name,"state_code":state_code,"state_short_name":"UT"}]
+
         pantogstinsmap[data["pan"]]=gstinsdata
     logging.info(pantogstinsmap)
     logging.info(customermap)
@@ -184,7 +189,7 @@ def processData(booking_data):
                             customer_details = customermap[customer_code]
                             company_name = customer_details["gstin_detail"]["company_name"]
                             customer_pan=customer_details["gstin_detail"]["pan"]
-                            address=customer_details["gstin_detail"]["address"]
+                            customer_address=customer_details["gstin_detail"]["address"]
 
                             hotel_state_short_name = []
                             gstin_details=[]
@@ -194,11 +199,12 @@ def processData(booking_data):
                                     hotel_state_short_name.append(hotel_state_code)
                                     if customer_pan in pantogstinsmap:
                                         if hotel_state_code in pantogstinsmap[customer_pan]:
-                                            state_details=pantogstinsmap[customer_pan][hotel_state_code]
+                                            state_details=pantogstinsmap[customer_pan][hotel_state_code][0]
                                             state=state_details["state"]
                                             state_code=state_details["state_code"]
                                             state_short_name=state_details["state_short_name"]
                                             gstin=state_details["gstin"]
+                                            address=company_name+", "+state_details["address"]
                                             gstin_details.append({
                                                 "company_name":company_name,
                                                 "pan": customer_pan,
@@ -208,19 +214,37 @@ def processData(booking_data):
                                                 "state_short_name":state_short_name,
                                                 "state_code":state_code,
                                             })
-                            # logging.info("hotel_state_short_name: " +str(hotel_state_short_name))
-                            # logging.info("customer_details: "+str(customer_details))
-                            # logging.info("segments: "+str(data["segments"]))
-                            # if customer_details["gstin_detail"]["state_short_name"] in hotel_state_short_name:
-                            if len(gstin_details)!=0:
-                                tempdoc["workspace_id"] = customer_details["workspace_id"]
-                                tempdoc["customer_code"] = customer_code
-                                tempdoc["recordLocator"] = data["identification"]["recordLocator"]
+                                        else:
+                                            gstin_details.append({
+                                                "company_name": company_name,
+                                                "pan": customer_pan,
+                                                "address": customer_address,
+                                            })
+                            tempdoc["workspace_id"] = customer_details["workspace_id"]
+                            tempdoc["customer_code"] = customer_code
+                            tempdoc["recordLocator"] = data["identification"]["recordLocator"]
+                            if len(gstin_details) != 0:
                                 tempdoc["gstin_detail"] = gstin_details
-                                tempdoc["status"] = status
-                                tempdoc["booking_data"] = data
-                                bcd_booking_details_collection.insert_one(tempdoc)
-                                insertedrecord.append(tempdoc)
+                            else:
+                                tempdoc["gstin_detail"]=[{
+                                    "company_name": company_name,
+                                    "pan": customer_pan,
+                                    "address": customer_address,
+                                }]
+                            tempdoc["status"] = status
+                            tempdoc["booking_data"] = data
+                            bcd_booking_details_collection.insert_one(tempdoc)
+                            insertedrecord.append(tempdoc)
+                        else:
+                            status = "PENDING"
+                            if "tripDetails" in data and "tripStatus" in data["tripDetails"] and data["tripDetails"][
+                                "tripStatus"] == "cancelled":
+                                status = "CANCELLED"
+                            tempdoc["recordLocator"] = data["identification"]["recordLocator"]
+                            tempdoc["status"] = status
+                            tempdoc["booking_data"] = data
+                            bcd_booking_details_collection.insert_one(tempdoc)
+                            insertedrecord.append(tempdoc)
                     else:
                         status = exiting_data["status"]
                         if "tripDetails" in data and "tripStatus" in data["tripDetails"] and data["tripDetails"][
