@@ -199,7 +199,7 @@ def processData(booking_data):
                                     hotel_state_code=data["segments"][j]["property"]["address"]["region"]["code"]
                                     hotel_state_short_name.append(hotel_state_code)
                                     if customer_pan in pantogstinsmap:
-                                        if hotel_state_code in pantogstinsmap[customer_pan] and pantogstinsmap[customer_pan][hotel_state_code]["gst_status"] == "Active":
+                                        if hotel_state_code in pantogstinsmap[customer_pan] and pantogstinsmap[customer_pan][hotel_state_code][0]["gst_status"] == "Active":
                                             state_details=pantogstinsmap[customer_pan][hotel_state_code][0]
                                             state=state_details["state"]
                                             state_code=state_details["state_code"]
