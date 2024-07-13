@@ -155,16 +155,17 @@ def processData(booking_data):
         for i in range(len(data["gstins"])):
             gstin=data["gstins"][i]["gstin"]
             state_code=data["gstins"][i]["stateCd"]
+            gst_status=data["gstins"][i]["authStatus"]
             address=data["gstins"][i]["address"]
             state_details=state_code_details.get(state_code)
             state_name=state_details["state_name"]
             state_short_name=state_details["short_name"]
             if state_short_name in gstinsdata:
-                gstinsdata[state_short_name].append({"gstin":gstin,"state":state_name,"state_code":state_code,"state_short_name":state_short_name,"address":address})
+                gstinsdata[state_short_name].append({"gstin":gstin,"state":state_name,"state_code":state_code,"state_short_name":state_short_name,"address":address,"gst_status":gst_status})
             else:
-                gstinsdata[state_short_name]=[{"gstin":gstin,"state":state_name,"state_code":state_code,"state_short_name":state_short_name,"address":address}]
+                gstinsdata[state_short_name]=[{"gstin":gstin,"state":state_name,"state_code":state_code,"state_short_name":state_short_name,"address":address,"gst_status":gst_status}]
             if state_short_name=="UK":
-                gstinsdata["UT"]=[{"gstin":gstin,"state":state_name,"state_code":state_code,"state_short_name":"UT"}]
+                gstinsdata["UT"]=[{"gstin":gstin,"state":state_name,"state_code":state_code,"state_short_name":"UT","address":address,"gst_status":gst_status}]
 
         pantogstinsmap[data["pan"]]=gstinsdata
     logging.info(pantogstinsmap)
@@ -198,7 +199,7 @@ def processData(booking_data):
                                     hotel_state_code=data["segments"][j]["property"]["address"]["region"]["code"]
                                     hotel_state_short_name.append(hotel_state_code)
                                     if customer_pan in pantogstinsmap:
-                                        if hotel_state_code in pantogstinsmap[customer_pan]:
+                                        if hotel_state_code in pantogstinsmap[customer_pan] and pantogstinsmap[customer_pan][hotel_state_code]["gst_status"] == "Active":
                                             state_details=pantogstinsmap[customer_pan][hotel_state_code][0]
                                             state=state_details["state"]
                                             state_code=state_details["state_code"]
