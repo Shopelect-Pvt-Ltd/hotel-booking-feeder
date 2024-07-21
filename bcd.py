@@ -99,31 +99,90 @@ def insertHotelDetails(hotelDetails):
             hotelDetailObj["hotel_name"] = hotelDetails[i]["property"]["name"]
             hotelDetailObj["hotel_code"] = hotelDetails[i]["property"]["code"]
             hotelDetailObj["hotel_address"] = hotelDetails[i]["property"]["address"]
-            hotelDetailObj["hotel_state_short_name"] = hotelDetails[i]["property"]["address"]["region"]["code"]
-            state_details = state_short_name_details.get(hotelDetails[i]["property"]["address"]["region"]["code"])
-            hotelDetailObj["hotel_state"] = state_details["state_name"]
-            hotelDetailObj["hotel_state_code"] = state_details["state_code"]
-            hotel_phone=[]
+            logging.info(hotelDetails)
+            if "property" in hotelDetails[i] and  "address" in hotelDetails[i]["property"] and "region" in hotelDetails[i]["property"]["address"] and "code" in hotelDetails[i]["property"]["address"]["region"]:
+                hotelDetailObj["hotel_state_short_name"] = hotelDetails[i]["property"]["address"]["region"]["code"]
+                state_details = state_short_name_details.get(hotelDetails[i]["property"]["address"]["region"]["code"])
+                hotelDetailObj["hotel_state"] = state_details["state_name"]
+                hotelDetailObj["hotel_state_code"] = state_details["state_code"]
+            hotel_phone = []
             if "phone" in hotelDetails[i]["property"] and "number" in hotelDetails[i]["property"]["phone"]:
                 hotel_phone.append(hotelDetails[i]["property"]["phone"]["number"])
-            hotelDetailObj["hotel_phone"]=hotel_phone
+            hotelDetailObj["hotel_phone"] = hotel_phone
             key_to_check = {"hotel_code": hotelDetails[i]["property"]["code"]}
             exiting_data = hotel_details_collection.find_one(key_to_check)
             if exiting_data is None:
                 hotel_details_collection.insert_one(hotelDetailObj)
 
+def getGstinDetails(data, customermap, pantogstinsmap):
+    gstin_details = []
+    workspace_id = None
+    customer_code = None
+    if "identification" in data and "customerNumber" in data["identification"]:
+        customer_code = data["identification"]["customerNumber"]
+
+    if customer_code in customermap:
+        customer_details = customermap[customer_code]
+        company_name = customer_details["gstin_detail"]["company_name"]
+        customer_pan = customer_details["gstin_detail"]["pan"]
+        customer_address = customer_details["gstin_detail"]["address"]
+        workspace_id = customer_details["workspace_id"]
+        hotel_state_short_name = []
+        for j in range(len(data["segments"])):
+            if "property" in data["segments"][j] and "address" in data["segments"][j]["property"] and "region" in data["segments"][j]["property"]["address"] and "code" in data["segments"][j]["property"]["address"]["region"]:
+                hotel_state_code = data["segments"][j]["property"]["address"]["region"]["code"]
+                hotel_state_short_name.append(hotel_state_code)
+                if customer_pan in pantogstinsmap:
+                    if hotel_state_code in pantogstinsmap[customer_pan] and \
+                            pantogstinsmap[customer_pan][hotel_state_code][0]["gst_status"] == "Active":
+                        state_details = pantogstinsmap[customer_pan][hotel_state_code][0]
+                        state = state_details["state"]
+                        state_code = state_details["state_code"]
+                        state_short_name = state_details["state_short_name"]
+                        gstin = state_details["gstin"]
+                        address = company_name + ", " + state_details["address"]
+                        gstin_details.append({
+                            "company_name": company_name,
+                            "pan": customer_pan,
+                            "gstin": gstin,
+                            "address": address,
+                            "state": state,
+                            "state_short_name": state_short_name,
+                            "state_code": state_code,
+                        })
+                    else:
+                        gstin_details.append({
+                            "company_name": company_name,
+                            "pan": customer_pan,
+                            "address": customer_address,
+                        })
+            else:
+                gstin_details.append({
+                    "company_name": company_name,
+                    "pan": customer_pan,
+                    "address": customer_address,
+                })
+
+
+        if len(gstin_details) == 0:
+            gstin_details.append({
+                "company_name": company_name,
+                "pan": customer_pan,
+                "address": customer_address,
+            })
+    return gstin_details, workspace_id, customer_code
+
 
 def processData(booking_data):
-
     db = client['bcd_hotel_booking']
     client_details_collection = db['bcd_client_details']
     bcd_booking_details_collection = db['bcd_booking_details']
-    pan_to_gstins=db['pan_to_gstins']
+    pan_to_gstins = db['pan_to_gstins']
 
     customermap = {}
     insertedrecord = []
     updatedrecord = []
-    pantogstinsmap={}
+    pantogstinsmap = {}
 
     bcd_client_details = list(client_details_collection.find())
     for data in bcd_client_details:
@@ -149,25 +208,33 @@ def processData(booking_data):
         }
         customermap[data["customer_code"]] = data
 
-    pan_to_gstins_details=list(pan_to_gstins.find())
+    pan_to_gstins_details = list(pan_to_gstins.find())
     for data in pan_to_gstins_details:
-        gstinsdata={}
+        gstinsdata = {}
         for i in range(len(data["gstins"])):
-            gstin=data["gstins"][i]["gstin"]
-            state_code=data["gstins"][i]["stateCd"]
-            gst_status=data["gstins"][i]["authStatus"]
-            address=data["gstins"][i]["address"]
-            state_details=state_code_details.get(state_code)
-            state_name=state_details["state_name"]
-            state_short_name=state_details["short_name"]
-            if state_short_name in gstinsdata:
-                gstinsdata[state_short_name].append({"gstin":gstin,"state":state_name,"state_code":state_code,"state_short_name":state_short_name,"address":address,"gst_status":gst_status})
-            else:
-                gstinsdata[state_short_name]=[{"gstin":gstin,"state":state_name,"state_code":state_code,"state_short_name":state_short_name,"address":address,"gst_status":gst_status}]
-            if state_short_name=="UK":
-                gstinsdata["UT"]=[{"gstin":gstin,"state":state_name,"state_code":state_code,"state_short_name":"UT","address":address,"gst_status":gst_status}]
+            if data["gstins"][i]["authStatus"] == "Active" and data["gstins"][i]["taxpayertype"] == "Regular":
+                gstin = data["gstins"][i]["gstin"]
+                state_code = data["gstins"][i]["stateCd"]
+                gst_status = data["gstins"][i]["authStatus"]
+                address = data["gstins"][i]["address"]
+                state_details = state_code_details.get(state_code)
+                state_name = state_details["state_name"]
+                state_short_name = state_details["short_name"]
+                taxpayertype = data["gstins"][i]["taxpayertype"]
+                if state_short_name in gstinsdata:
+                    gstinsdata[state_short_name].append({"gstin": gstin, "state": state_name, "state_code": state_code,
+                                                         "state_short_name": state_short_name, "address": address,
+                                                         "gst_status": gst_status, "taxpayertype": taxpayertype})
+                else:
+                    gstinsdata[state_short_name] = [{"gstin": gstin, "state": state_name, "state_code": state_code,
+                                                     "state_short_name": state_short_name, "address": address,
+                                                     "gst_status": gst_status, "taxpayertype": taxpayertype}]
+                if state_short_name == "UK":
+                    gstinsdata["UT"] = [
+                        {"gstin": gstin, "state": state_name, "state_code": state_code, "state_short_name": "UT",
+                         "address": address, "gst_status": gst_status, "taxpayertype": taxpayertype}]
 
-        pantogstinsmap[data["pan"]]=gstinsdata
+        pantogstinsmap[data["pan"]] = gstinsdata
     logging.info(pantogstinsmap)
     logging.info(customermap)
     if len(customermap) != 0:
@@ -184,56 +251,17 @@ def processData(booking_data):
                         if "tripDetails" in data and "tripStatus" in data["tripDetails"] and data["tripDetails"][
                             "tripStatus"] == "cancelled":
                             status = "CANCELLED"
-                        tempdoc = {}
-                        customer_code = data["identification"]["customerNumber"]
-                        if customer_code in customermap:
-                            customer_details = customermap[customer_code]
-                            company_name = customer_details["gstin_detail"]["company_name"]
-                            customer_pan=customer_details["gstin_detail"]["pan"]
-                            customer_address=customer_details["gstin_detail"]["address"]
 
-                            hotel_state_short_name = []
-                            gstin_details=[]
-                            for j in range(len(data["segments"])):
-                                # if "property" in data["segments"][j] and "region" in data["segments"][j]["property"]:
-                                    hotel_state_code=data["segments"][j]["property"]["address"]["region"]["code"]
-                                    hotel_state_short_name.append(hotel_state_code)
-                                    if customer_pan in pantogstinsmap:
-                                        if hotel_state_code in pantogstinsmap[customer_pan] and pantogstinsmap[customer_pan][hotel_state_code][0]["gst_status"] == "Active":
-                                            state_details=pantogstinsmap[customer_pan][hotel_state_code][0]
-                                            state=state_details["state"]
-                                            state_code=state_details["state_code"]
-                                            state_short_name=state_details["state_short_name"]
-                                            gstin=state_details["gstin"]
-                                            address=company_name+", "+state_details["address"]
-                                            gstin_details.append({
-                                                "company_name":company_name,
-                                                "pan": customer_pan,
-                                                "gstin":gstin,
-                                                "address":address,
-                                                "state":state,
-                                                "state_short_name":state_short_name,
-                                                "state_code":state_code,
-                                            })
-                                        else:
-                                            gstin_details.append({
-                                                "company_name": company_name,
-                                                "pan": customer_pan,
-                                                "address": customer_address,
-                                            })
-                            tempdoc["workspace_id"] = customer_details["workspace_id"]
+                        tempdoc = {}
+                        gstin_details, workspace_id, customer_code = getGstinDetails(data, customermap, pantogstinsmap)
+                        if len(gstin_details) != 0 and workspace_id is not None and customer_code is not None:
+                            tempdoc["workspace_id"] = workspace_id
                             tempdoc["customer_code"] = customer_code
+                            tempdoc["gstin_detail"] = gstin_details
                             tempdoc["recordLocator"] = data["identification"]["recordLocator"]
-                            if len(gstin_details) != 0:
-                                tempdoc["gstin_detail"] = gstin_details
-                            else:
-                                tempdoc["gstin_detail"]=[{
-                                    "company_name": company_name,
-                                    "pan": customer_pan,
-                                    "address": customer_address,
-                                }]
                             tempdoc["status"] = status
                             tempdoc["booking_data"] = data
+
                             bcd_booking_details_collection.insert_one(tempdoc)
                             insertedrecord.append(tempdoc)
                         else:
@@ -248,25 +276,33 @@ def processData(booking_data):
                             insertedrecord.append(tempdoc)
                     else:
                         status = exiting_data["status"]
+
+                        if status == "COMPLETED":
+                            continue
+
                         if "tripDetails" in data and "tripStatus" in data["tripDetails"] and data["tripDetails"][
                             "tripStatus"] == "cancelled":
                             status = "CANCELLED"
-                        result = bcd_booking_details_collection.update_one(
-                            key_to_check,
-                            {
-                                "$set": {
-                                    "status": status,
-                                    "booking_data": data
-                                }
-                            })
 
-                        if result.matched_count > 0:
-                            logging.info("Updated the document for " + str(key_to_check))
-                            exiting_data["status"] = status
-                            exiting_data["booking_data"] = data
-                            updatedrecord.append(exiting_data)
-                        else:
-                            logging.info("No updates for the bookingId: " + str(key_to_check))
+                        gstin_details, workspace_id, customer_code = getGstinDetails(data, customermap, pantogstinsmap)
+                        if len(gstin_details) != 0:
+                            result = bcd_booking_details_collection.update_one(
+                                key_to_check,
+                                {
+                                    "$set": {
+                                        "status": status,
+                                        "gstin_detail": gstin_details,
+                                        "booking_data": data
+                                    }
+                                })
+
+                            if result.matched_count > 0:
+                                logging.info("Updated the document for " + str(key_to_check))
+                                exiting_data["status"] = status
+                                exiting_data["booking_data"] = data
+                                updatedrecord.append(exiting_data)
+                            else:
+                                logging.info("No updates for the bookingId: " + str(key_to_check))
 
     return insertedrecord, updatedrecord
 
