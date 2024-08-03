@@ -52,29 +52,46 @@ def getNonCompletedData():
     pan_to_gstins_details = list(pan_to_gstins.find())
     for data in pan_to_gstins_details:
         gstinsdata = {}
-        for i in range(len(data["gstins"])):
-            if data["gstins"][i]["authStatus"] == "Active" and data["gstins"][i]["taxpayertype"] == "Regular":
-                gstin = data["gstins"][i]["gstin"]
-                state_code = data["gstins"][i]["stateCd"]
-                gst_status = data["gstins"][i]["authStatus"]
-                address = data["gstins"][i]["address"]
-                state_details = state_code_details.get(state_code)
-                state_name = state_details["state_name"]
-                state_short_name = state_details["short_name"]
-                taxpayertype = data["gstins"][i]["taxpayertype"]
+        for j in range(len(data["gstins"])):
+            gstin = data["gstins"][j]["gstin"]
+            state_code = data["gstins"][j]["stateCd"]
+            gst_status = data["gstins"][j]["authStatus"]
+            address = data["gstins"][j]["address"]
+            state_details = state_code_details.get(state_code)
+            state_name = state_details["state_name"]
+            state_short_name = state_details["short_name"]
+            taxpayertype = data["gstins"][j]["taxpayertype"]
+            if gst_status == "Active" and taxpayertype == "Regular":
                 if state_short_name in gstinsdata:
                     gstinsdata[state_short_name].append({"gstin": gstin, "state": state_name, "state_code": state_code,
                                                          "state_short_name": state_short_name, "address": address,
-                                                         "gst_status": gst_status,"taxpayertype":taxpayertype})
+                                                         "gst_status": gst_status, "taxpayertype": taxpayertype})
                 else:
                     gstinsdata[state_short_name] = [{"gstin": gstin, "state": state_name, "state_code": state_code,
                                                      "state_short_name": state_short_name, "address": address,
-                                                     "gst_status": gst_status,"taxpayertype":taxpayertype}]
+                                                     "gst_status": gst_status, "taxpayertype": taxpayertype}]
                 if state_short_name == "UK":
                     gstinsdata["UT"] = [
                         {"gstin": gstin, "state": state_name, "state_code": state_code, "state_short_name": "UT",
-                         "address": address, "gst_status": gst_status,"taxpayertype":taxpayertype}]
+                         "address": address, "gst_status": gst_status, "taxpayertype": taxpayertype}]
+            elif gst_status == "Inactive":
+                if state_short_name in gstinsdata:
+                    gstinsdata[state_short_name].append({"gst_status": gst_status})
+                else:
+                    gstinsdata[state_short_name] = [{"gst_status": gst_status}]
+                if state_short_name == "UK":
+                    gstinsdata["UT"] = [{"gst_status": gst_status}]
+
+            elif gst_status == "Active" and taxpayertype == "Input Service Distributor (ISD)":
+                if state_short_name in gstinsdata:
+                    gstinsdata[state_short_name].append({"gst_status": taxpayertype})
+                else:
+                    gstinsdata[state_short_name] = [{"gst_status": taxpayertype}]
+                if state_short_name == "UK":
+                    gstinsdata["UT"] = [{"gst_status": taxpayertype}]
+
         pantogstinsmap[data["pan"]] = gstinsdata
+
     logging.info(pantogstinsmap)
     logging.info(customermap)
     logging.info("=============================================================================")
@@ -88,49 +105,103 @@ def getNonCompletedData():
             if exiting_data is not None:
                 customer_code = data["identification"]["customerNumber"]
                 tempdoc = {}
+                gstin_details = []
                 if customer_code in customermap:
                     customer_details = customermap[customer_code]
                     company_name = customer_details["gstin_detail"]["company_name"]
                     customer_pan = customer_details["gstin_detail"]["pan"]
                     customer_address = customer_details["gstin_detail"]["address"]
-                    hotel_state_short_name = []
-                    gstin_details = []
+                    workspace_id = customer_details["workspace_id"]
+
                     for j in range(len(data["segments"])):
-                        # if "property" in data["segments"][j] and "region" in data["segments"][j]["property"]:
-                        hotel_state_code = data["segments"][j]["property"]["address"]["region"]["code"]
-                        hotel_state_short_name.append(hotel_state_code)
-                        if customer_pan in pantogstinsmap:
-                            if hotel_state_code in pantogstinsmap[customer_pan] and \
-                                    pantogstinsmap[customer_pan][hotel_state_code][0]["gst_status"] == "Active":
-                                state_details = pantogstinsmap[customer_pan][hotel_state_code][0]
-                                state = state_details["state"]
-                                state_code = state_details["state_code"]
-                                state_short_name = state_details["state_short_name"]
-                                gstin = state_details["gstin"]
-                                address = company_name + ", " + state_details["address"]
-                                gstin_details.append({
-                                    "company_name": company_name,
-                                    "pan": customer_pan,
-                                    "gstin": gstin,
-                                    "address": address,
-                                    "state": state,
-                                    "state_short_name": state_short_name,
-                                    "state_code": state_code,
-                                })
+                        if "property" in data["segments"][j] and "address" in data["segments"][j][
+                            "property"] and "region" in data["segments"][j]["property"]["address"] and "code" in \
+                                data["segments"][j]["property"]["address"]["region"]:
+                            hotel_state_code = data["segments"][j]["property"]["address"]["region"]["code"]
+                            if customer_pan in pantogstinsmap:
+                                if hotel_state_code in pantogstinsmap[customer_pan]:
+                                    active = None
+                                    isd = None
+                                    inactive = None
+                                    for k in range(len(pantogstinsmap[customer_pan][hotel_state_code])):
+                                        if pantogstinsmap[customer_pan][hotel_state_code][k]["gst_status"] == "Active":
+                                            active = k
+                                            break
+                                        if pantogstinsmap[customer_pan][hotel_state_code][k][
+                                            "gst_status"] == "Input Service Distributor (ISD)":
+                                            isd = k
+                                        if pantogstinsmap[customer_pan][hotel_state_code][k][
+                                            "gst_status"] == "Inactive":
+                                            inactive = k
+
+                                    if active is not None:
+                                        state_details = pantogstinsmap[customer_pan][hotel_state_code][active]
+                                        state = state_details["state"]
+                                        state_code = state_details["state_code"]
+                                        state_short_name = state_details["state_short_name"]
+                                        gstin = state_details["gstin"]
+                                        address = company_name + ", " + state_details["address"]
+                                        gstin_details.append({
+                                            "company_name": company_name,
+                                            "pan": customer_pan,
+                                            "gstin": gstin,
+                                            "address": address,
+                                            "state": state,
+                                            "state_short_name": state_short_name,
+                                            "state_code": state_code,
+                                            "remark": "Active"
+                                        })
+
+                                    elif isd is not None:
+                                        gstin_details.append({
+                                            "company_name": company_name,
+                                            "pan": customer_pan,
+                                            "address": customer_address,
+                                            "remark": "Input Service Distributor (ISD)"
+                                        })
+
+                                    elif inactive is not None:
+                                        gstin_details.append({
+                                            "company_name": company_name,
+                                            "pan": customer_pan,
+                                            "address": customer_address,
+                                            "remark": "Inactive"
+                                        })
+
+                                # Need to test
+                                else:
+                                    gstin_details.append({
+                                        "company_name": company_name,
+                                        "pan": customer_pan,
+                                        "address": customer_address,
+                                        "remark": "Customer GSTIN details is missing for the state code " + str(
+                                            hotel_state_code)
+                                    })
+
+                            # Need to test
                             else:
                                 gstin_details.append({
                                     "company_name": company_name,
                                     "pan": customer_pan,
                                     "address": customer_address,
+                                    "remark": "Customer GSTIN details is missing for the PAN " + str(customer_pan)
                                 })
-                    if len(gstin_details) != 0:
-                        tempdoc["gstin_detail"] = gstin_details
-                    else:
-                        tempdoc["gstin_detail"] = [{
-                            "company_name": company_name,
-                            "pan": customer_pan,
-                            "address": customer_address,
-                        }]
+                        else:
+                            gstin_details.append({
+                                "company_name": company_name,
+                                "pan": customer_pan,
+                                "address": customer_address,
+                                "remark": "Hotel region code is missing in booking data"
+                            })
+                    # Need  to test
+                else:
+                    if customer_code is not None:
+                        gstin_details.append({
+                            "remark": "Customer details is missing for customer code " + str(customer_code)
+                        })
+
+                if len(gstin_details) != 0:
+                    tempdoc["gstin_detail"] = gstin_details
                     logging.info("New GST Info for recordLocator: " + str(
                         data["identification"]["recordLocator"]) + " Data: " + str(tempdoc["gstin_detail"]))
                     result = bcd_booking_details_collection.update_one(
@@ -141,8 +212,6 @@ def getNonCompletedData():
                             }
                         })
                     logging.info("=============================================================================")
-
-
 
 
 if __name__ == '__main__':
