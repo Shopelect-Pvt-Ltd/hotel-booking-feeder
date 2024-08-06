@@ -43,6 +43,7 @@ state_short_name_details={
     "AS": {"state_name": "Assam", "state_code": "18"},
     "BR": {"state_name": "Bihar", "state_code": "10"},
     "CG": {"state_name": "Chattisgarh", "state_code": "22"},
+    "CT": {"state_name": "Chattisgarh", "state_code": "22"},
     "GA": {"state_name": "Goa", "state_code": "30"},
     "GJ": {"state_name": "Gujarat", "state_code": "24"},
     "HR": {"state_name": "Haryana", "state_code": "06"},

@@ -9,6 +9,8 @@ from state_mapping_details import state_code_details
 load_dotenv()
 import time
 from state_mapping_details import state_short_name_details
+from datetime import datetime
+import pytz
 
 # Setup basic configuration for logging
 logging.basicConfig(
@@ -17,7 +19,7 @@ logging.basicConfig(
 )
 
 MONGO_URL = os.getenv('MONGO_URL')
-
+SENDGRID_API_KEY = os.getenv('SENDGRID_API_KEY')
 client = MongoClient(MONGO_URL, maxIdleTimeMS=None)
 logging.info("Mongo connection successful")
 
@@ -34,6 +36,53 @@ def getDate():
     # Combine both dates in the desired format
     date_range = f"{formatted_yesterday} TO {formatted_today}"
     return date_range
+
+
+def sendMail(message):
+    # Define the timezone for IST
+    ist = pytz.timezone('Asia/Kolkata')
+    # Get the current time in IST
+    current_time_ist = datetime.now(ist)
+    sender_email = "alerts@finkraft.ai"
+    recipient_email = ["komalkant@kgrp.in"]
+    subject = "Exception happened in the BCD" + str(current_time_ist.strftime('%Y-%m-%d %H:%M:%S'))
+    content = "Exception happened in the BCD hotel booking details please fix it.Message: " + str(message)
+
+    url = "https://api.sendgrid.com/v3/mail/send"
+    headers = {
+        "Authorization": f"Bearer {SENDGRID_API_KEY}",
+        "Content-Type": "application/json"
+    }
+    recipient_email_list = []
+    for i in range(len(recipient_email)):
+        recipient_email_list.append({"email": recipient_email[i]})
+
+    data = {
+        "personalizations": [
+            {
+                "to": recipient_email_list,
+                "subject": subject
+            }
+        ],
+        "from": {"email": sender_email},
+        "content": [
+            {
+                "type": "text/html",
+                "value": content
+            }
+        ]
+    }
+
+    try:
+        for i in range(1, 4, 1):
+            response = requests.post(url, headers=headers, json=data, verify=False)
+            print(response.status_code)
+            if response.status_code == 202:
+                print("Email sent successfully!")
+                break
+            time.sleep(5)
+    except Exception as e:
+        print("Error sending email:", e)
 
 
 def getBCDToken():
@@ -91,6 +140,7 @@ def getBookingData():
 
 
 def insertHotelDetails(hotelDetails):
+    logging.info("Hotel Details: " + str(hotelDetails))
     db = client['bcd_hotel_booking']
     hotel_details_collection = db['hotel_details']
     for i in range(len(hotelDetails)):
@@ -100,7 +150,9 @@ def insertHotelDetails(hotelDetails):
             hotelDetailObj["hotel_code"] = hotelDetails[i]["property"]["code"]
             hotelDetailObj["hotel_address"] = hotelDetails[i]["property"]["address"]
             logging.info(hotelDetails)
-            if "property" in hotelDetails[i] and  "address" in hotelDetails[i]["property"] and "region" in hotelDetails[i]["property"]["address"] and "code" in hotelDetails[i]["property"]["address"]["region"]:
+            if "property" in hotelDetails[i] and "address" in hotelDetails[i]["property"] and "region" in \
+                    hotelDetails[i]["property"]["address"] and "code" in hotelDetails[i]["property"]["address"][
+                "region"]:
                 hotelDetailObj["hotel_state_short_name"] = hotelDetails[i]["property"]["address"]["region"]["code"]
                 state_details = state_short_name_details.get(hotelDetails[i]["property"]["address"]["region"]["code"])
                 hotelDetailObj["hotel_state"] = state_details["state_name"]
@@ -135,7 +187,9 @@ def getGstinDetails(data, customermap, pantogstinsmap):
         customer_address = customer_details["gstin_detail"]["address"]
         workspace_id = customer_details["workspace_id"]
         for i in range(len(data["segments"])):
-            if "property" in data["segments"][i] and "address" in data["segments"][i]["property"] and "region" in data["segments"][i]["property"]["address"] and "code" in data["segments"][i]["property"]["address"]["region"]:
+            if "property" in data["segments"][i] and "address" in data["segments"][i]["property"] and "region" in \
+                    data["segments"][i]["property"]["address"] and "code" in data["segments"][i]["property"]["address"][
+                "region"]:
                 hotel_state_code = data["segments"][i]["property"]["address"]["region"]["code"]
                 if customer_pan in pantogstinsmap:
                     if hotel_state_code in pantogstinsmap[customer_pan]:
@@ -146,7 +200,8 @@ def getGstinDetails(data, customermap, pantogstinsmap):
                             if pantogstinsmap[customer_pan][hotel_state_code][j]["gst_status"] == "Active":
                                 active = j
                                 break
-                            if pantogstinsmap[customer_pan][hotel_state_code][j]["gst_status"] == "Input Service Distributor (ISD)":
+                            if pantogstinsmap[customer_pan][hotel_state_code][j][
+                                "gst_status"] == "Input Service Distributor (ISD)":
                                 isd = j
                             if pantogstinsmap[customer_pan][hotel_state_code][j]["gst_status"] == "Inactive":
                                 inactive = j
@@ -185,22 +240,20 @@ def getGstinDetails(data, customermap, pantogstinsmap):
                                 "remark": "Inactive"
                             })
 
-                    #Need to test
                     else:
                         gstin_details.append({
                             "company_name": company_name,
                             "pan": customer_pan,
                             "address": customer_address,
-                            "remark": "Customer GSTIN details is missing for the state code "+str(hotel_state_code)
+                            "remark": "Customer GSTIN details is missing for the state code " + str(hotel_state_code)
                         })
 
-                #Need to test
                 else:
                     gstin_details.append({
                         "company_name": company_name,
                         "pan": customer_pan,
                         "address": customer_address,
-                        "remark": "Customer GSTIN details is missing for the PAN "+str(customer_pan)
+                        "remark": "Customer GSTIN details is missing for the PAN " + str(customer_pan)
                     })
             else:
                 gstin_details.append({
@@ -209,11 +262,10 @@ def getGstinDetails(data, customermap, pantogstinsmap):
                     "address": customer_address,
                     "remark": "Hotel region code is missing in booking data"
                 })
-    # Need  to test
     else:
         if customer_code is not None:
             gstin_details.append({
-                "remark": "Customer details is missing for customer code "+str(customer_code)
+                "remark": "Customer details is missing for customer code " + str(customer_code)
             })
 
     return gstin_details, workspace_id, customer_code
@@ -275,33 +327,46 @@ def processData(booking_data):
                     gstinsdata[state_short_name] = [{"gstin": gstin, "state": state_name, "state_code": state_code,
                                                      "state_short_name": state_short_name, "address": address,
                                                      "gst_status": gst_status, "taxpayertype": taxpayertype}]
-                if state_short_name == "UK":
-                    gstinsdata["UT"] = [
-                        {"gstin": gstin, "state": state_name, "state_code": state_code, "state_short_name": "UT",
+                if state_short_name == "UT":
+                    gstinsdata["UK"] = [
+                        {"gstin": gstin, "state": state_name, "state_code": state_code, "state_short_name": "UK",
                          "address": address, "gst_status": gst_status, "taxpayertype": taxpayertype}]
+                if state_short_name == "CG":
+                    gstinsdata["CT"] = [
+                        {"gstin": gstin, "state": state_name, "state_code": state_code, "state_short_name": "CT",
+                         "address": address, "gst_status": gst_status, "taxpayertype": taxpayertype}]
+
+
             elif gst_status == "Inactive":
                 if state_short_name in gstinsdata:
                     gstinsdata[state_short_name].append({"gst_status": gst_status})
                 else:
                     gstinsdata[state_short_name] = [{"gst_status": gst_status}]
-                if state_short_name == "UK":
-                    gstinsdata["UT"] = [{"gst_status": gst_status}]
+                if state_short_name == "UT":
+                    gstinsdata["UK"] = [{"gst_status": gst_status}]
+                if state_short_name == "CG":
+                    gstinsdata["CT"] = [{"gst_status": gst_status}]
 
             elif gst_status == "Active" and taxpayertype == "Input Service Distributor (ISD)":
                 if state_short_name in gstinsdata:
                     gstinsdata[state_short_name].append({"gst_status": taxpayertype})
                 else:
                     gstinsdata[state_short_name] = [{"gst_status": taxpayertype}]
-                if state_short_name == "UK":
-                    gstinsdata["UT"] = [{"gst_status": taxpayertype}]
+                if state_short_name == "UT":
+                    gstinsdata["UK"] = [{"gst_status": taxpayertype}]
+                if state_short_name == "CG":
+                    gstinsdata["CT"] = [{"gst_status": taxpayertype}]
 
         pantogstinsmap[data["pan"]] = gstinsdata
+
     logging.info(pantogstinsmap)
     logging.info(customermap)
+
     if len(customermap) != 0:
         for i in range(len(booking_data)):
             data = booking_data[i]
             if "segments" in data and len(data["segments"]) != 0:
+                logging.info("Booking Data: " + str(data))
                 insertHotelDetails(data["segments"])
                 if "identification" in data and "recordLocator" in data["identification"]:
                     key_to_check = {"recordLocator": data["identification"]["recordLocator"]}
@@ -347,11 +412,13 @@ def processData(booking_data):
 
                         currLastModifiedDateTime = None
                         if "tripDetails" in data and "lastModifiedDateTime" in data["tripDetails"]:
-                            currLastModifiedDateTime=data["tripDetails"]["lastModifiedDateTime"]
+                            currLastModifiedDateTime = data["tripDetails"]["lastModifiedDateTime"]
 
                         existingLastModifiedDateTime = None
-                        if "booking_data" in existing_data and "tripDetails" in existing_data["booking_data"] and "lastModifiedDateTime" in existing_data["booking_data"]["tripDetails"]:
-                            existingLastModifiedDateTime = existing_data["booking_data"]["tripDetails"]["lastModifiedDateTime"]
+                        if "booking_data" in existing_data and "tripDetails" in existing_data[
+                            "booking_data"] and "lastModifiedDateTime" in existing_data["booking_data"]["tripDetails"]:
+                            existingLastModifiedDateTime = existing_data["booking_data"]["tripDetails"][
+                                "lastModifiedDateTime"]
 
                         if currLastModifiedDateTime is not None and existingLastModifiedDateTime is not None and currLastModifiedDateTime != existingLastModifiedDateTime:
                             insertBookingUpdateLogs(existing_data)
@@ -380,14 +447,18 @@ def processData(booking_data):
 
 
 if __name__ == '__main__':
-    logging.info("===================================================")
-    datedata = getDate()
-    logging.info("Processing for date : " + str(datedata))
-    booking_data = getBookingData()
-    if booking_data is not None:
-        logging.info("No. of booking data found: " + str(len(booking_data)))
-        logging.info("Processing Booking Data")
-        insertedrecord, updatedrecord = processData(booking_data)
-        logging.info("Inserted Rows: " + str(len(insertedrecord)))
-        logging.info("Updated Rows: " + str(len(updatedrecord)))
-    logging.info("===================================================")
+    try:
+        logging.info("===================================================")
+        datedata = getDate()
+        logging.info("Processing for date : " + str(datedata))
+        booking_data = getBookingData()
+        if booking_data is not None:
+            logging.info("No. of booking data found: " + str(len(booking_data)))
+            logging.info("Processing Booking Data")
+            insertedrecord, updatedrecord = processData(booking_data)
+            logging.info("Inserted Rows: " + str(len(insertedrecord)))
+            logging.info("Updated Rows: " + str(len(updatedrecord)))
+        logging.info("===================================================")
+    except Exception as e:
+        logging.info(str(e))
+        sendMail(str(e))
