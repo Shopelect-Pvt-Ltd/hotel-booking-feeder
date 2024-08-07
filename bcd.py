@@ -45,7 +45,7 @@ def sendMail(message):
     current_time_ist = datetime.now(ist)
     sender_email = "alerts@finkraft.ai"
     recipient_email = ["komalkant@kgrp.in"]
-    subject = "Exception happened in the BCD" + str(current_time_ist.strftime('%Y-%m-%d %H:%M:%S'))
+    subject = "Exception happened in the BCD " + str(current_time_ist.strftime('%d-%m-%Y %H:%M:%S'))
     content = "Exception happened in the BCD hotel booking details please fix it.Message: " + str(message)
 
     url = "https://api.sendgrid.com/v3/mail/send"
