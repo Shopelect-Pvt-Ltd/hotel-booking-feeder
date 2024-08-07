@@ -170,6 +170,7 @@ def insertHotelDetails(hotelDetails):
 def insertBookingUpdateLogs(existing_data):
     db = client['bcd_hotel_booking']
     bcd_booking_update_logs_collection = db['bcd_booking_update_logs']
+    del existing_data['_id']
     bcd_booking_update_logs_collection.insert_one(existing_data)
 
 

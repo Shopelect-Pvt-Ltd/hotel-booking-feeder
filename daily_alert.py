@@ -143,9 +143,11 @@ if __name__ == "__main__":
     dynamic_template_data=getDetails()
     to_emails = [
         "komalkant@kgrp.in",
-        "tabrez@kgrp.in",
         "indrani@kgrp.in",
-        "rakesh@kgrp.in"
+        "rakesh@kgrp.in",
+        "ambuj@kgrp.in",
+        "poojanaskar@kgrp.in",
+        "suchay@kgrp.in"
     ]
     template_id = 'd-6fce724139e44c02b79dbcd5c4482e3e'
     send_email(to_emails, template_id, dynamic_template_data)
