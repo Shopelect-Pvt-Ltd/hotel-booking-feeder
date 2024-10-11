@@ -11,6 +11,7 @@ import time
 from state_mapping_details import state_short_name_details
 from datetime import datetime
 import pytz
+from state_mapping_details import pincode_mapping
 
 # Setup basic configuration for logging
 logging.basicConfig(
@@ -150,11 +151,10 @@ def insertHotelDetails(hotelDetails):
             hotelDetailObj["hotel_code"] = hotelDetails[i]["property"]["code"]
             hotelDetailObj["hotel_address"] = hotelDetails[i]["property"]["address"]
             logging.info(hotelDetails)
-            if "property" in hotelDetails[i] and "address" in hotelDetails[i]["property"] and "region" in \
-                    hotelDetails[i]["property"]["address"] and "code" in hotelDetails[i]["property"]["address"][
-                "region"]:
-                hotelDetailObj["hotel_state_short_name"] = hotelDetails[i]["property"]["address"]["region"]["code"]
-                state_details = state_short_name_details.get(hotelDetails[i]["property"]["address"]["region"]["code"])
+            hotel_state_code=getHotelCode(hotelDetails[i])
+            if hotel_state_code is not None:
+                hotelDetailObj["hotel_state_short_name"] = hotel_state_code
+                state_details = state_short_name_details.get(hotel_state_code)
                 hotelDetailObj["hotel_state"] = state_details["state_name"]
                 hotelDetailObj["hotel_state_code"] = state_details["state_code"]
             hotel_phone = []
@@ -174,6 +174,26 @@ def insertBookingUpdateLogs(existing_data):
     bcd_booking_update_logs_collection.insert_one(existing_data)
 
 
+def findStateByPincode(pincode):
+    try:
+        # Extract the first three digits of the pincode.
+        first_three_digits = int(pincode[:3])
+        # Iterate over the mapping to find the matching state code.
+        for entry in pincode_mapping:
+            if first_three_digits in entry["range"]:
+                return entry["code"]
+        return None
+    except ValueError:
+        return None
+
+def getHotelCode(data):
+    if "property" in data and "address" in data["property"] and "region" in data["property"]["address"] and "code" in data["property"]["address"]["region"]:
+        return data["property"]["address"]["region"]["code"]
+    elif "property" in data and "address" in data["property"] and "postalCode" in data["property"]["address"]:
+        return  findStateByPincode(data["property"]["address"]["postalCode"])
+    else:
+        return None
+
 def getGstinDetails(data, customermap, pantogstinsmap):
     gstin_details = []
     workspace_id = None
@@ -188,10 +208,8 @@ def getGstinDetails(data, customermap, pantogstinsmap):
         customer_address = customer_details["gstin_detail"]["address"]
         workspace_id = customer_details["workspace_id"]
         for i in range(len(data["segments"])):
-            if "property" in data["segments"][i] and "address" in data["segments"][i]["property"] and "region" in \
-                    data["segments"][i]["property"]["address"] and "code" in data["segments"][i]["property"]["address"][
-                "region"]:
-                hotel_state_code = data["segments"][i]["property"]["address"]["region"]["code"]
+            hotel_state_code = getHotelCode(data["segments"][i])
+            if hotel_state_code is not None:
                 if customer_pan in pantogstinsmap:
                     if hotel_state_code in pantogstinsmap[customer_pan]:
                         active = None
@@ -328,35 +346,18 @@ def processData(booking_data):
                     gstinsdata[state_short_name] = [{"gstin": gstin, "state": state_name, "state_code": state_code,
                                                      "state_short_name": state_short_name, "address": address,
                                                      "gst_status": gst_status, "taxpayertype": taxpayertype}]
-                if state_short_name == "UT":
-                    gstinsdata["UK"] = [
-                        {"gstin": gstin, "state": state_name, "state_code": state_code, "state_short_name": "UK",
-                         "address": address, "gst_status": gst_status, "taxpayertype": taxpayertype}]
-                if state_short_name == "CG":
-                    gstinsdata["CT"] = [
-                        {"gstin": gstin, "state": state_name, "state_code": state_code, "state_short_name": "CT",
-                         "address": address, "gst_status": gst_status, "taxpayertype": taxpayertype}]
-
 
             elif gst_status == "Inactive":
                 if state_short_name in gstinsdata:
                     gstinsdata[state_short_name].append({"gst_status": gst_status})
                 else:
                     gstinsdata[state_short_name] = [{"gst_status": gst_status}]
-                if state_short_name == "UT":
-                    gstinsdata["UK"] = [{"gst_status": gst_status}]
-                if state_short_name == "CG":
-                    gstinsdata["CT"] = [{"gst_status": gst_status}]
 
             elif gst_status == "Active" and taxpayertype == "Input Service Distributor (ISD)":
                 if state_short_name in gstinsdata:
                     gstinsdata[state_short_name].append({"gst_status": taxpayertype})
                 else:
                     gstinsdata[state_short_name] = [{"gst_status": taxpayertype}]
-                if state_short_name == "UT":
-                    gstinsdata["UK"] = [{"gst_status": taxpayertype}]
-                if state_short_name == "CG":
-                    gstinsdata["CT"] = [{"gst_status": taxpayertype}]
 
         pantogstinsmap[data["pan"]] = gstinsdata
 

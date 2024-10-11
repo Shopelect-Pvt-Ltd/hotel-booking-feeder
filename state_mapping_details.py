@@ -42,7 +42,6 @@ state_short_name_details={
     "AR": {"state_name": "Arunachal Pradesh", "state_code": "12"},
     "AS": {"state_name": "Assam", "state_code": "18"},
     "BR": {"state_name": "Bihar", "state_code": "10"},
-    "CG": {"state_name": "Chattisgarh", "state_code": "22"},
     "CT": {"state_name": "Chattisgarh", "state_code": "22"},
     "GA": {"state_name": "Goa", "state_code": "30"},
     "GJ": {"state_name": "Gujarat", "state_code": "24"},
@@ -66,7 +65,6 @@ state_short_name_details={
     "TR": {"state_name": "Tripura", "state_code": "16"},
     "UP": {"state_name": "Uttar Pradesh", "state_code": "09"},
     "UT": {"state_name": "Uttarakhand", "state_code": "05"},
-    "UK": {"state_name": "Uttarakhand", "state_code": "05"},
     "WB": {"state_name": "West Bengal", "state_code": "19"},
     "AN": {"state_name": "Andaman and Nicobar Islands", "state_code": "35"},
     "CH": {"state_name": "Chandigarh", "state_code": "04"},
@@ -83,7 +81,7 @@ state_code_details={
     "12": {"state_name": "Arunachal Pradesh", "short_name": "AR"},
     "18": {"state_name": "Assam", "short_name": "AS"},
     "10": {"state_name": "Bihar", "short_name": "BR"},
-    "22": {"state_name": "Chattisgarh", "short_name": "CG"},
+    "22": {"state_name": "Chhattisgarh", "short_name": "CT"},
     "30": {"state_name": "Goa", "short_name": "GA"},
     "24": {"state_name": "Gujarat", "short_name": "GJ"},
     "06": {"state_name": "Haryana", "short_name": "HR"},
@@ -116,3 +114,42 @@ state_code_details={
     "37": {"state_name": "Ladakh", "short_name": "LA"},
     "01": {"state_name": "Jammu & Kashmir", "short_name": "JK"}
 }
+
+pincode_mapping = [
+    {"code": "JK", "range": range(180, 195)},  # Jammu and Kashmir
+    {"code": "HP", "range": range(171, 178)},  # Himachal Pradesh
+    {"code": "PB", "range": range(140, 161)},  # Punjab
+    {"code": "CH", "range": range(160, 161)},  # Chandigarh
+    {"code": "UT", "range": range(244, 264)},  # Uttarakhand
+    {"code": "HR", "range": range(121, 137)},  # Haryana
+    {"code": "DL", "range": range(110, 111)},  # Delhi
+    {"code": "RJ", "range": range(301, 346)},  # Rajasthan
+    {"code": "UP", "range": range(201, 286)},  # Uttar Pradesh
+    {"code": "BR", "range": range(800, 856)},  # Bihar
+    {"code": "SK", "range": range(737, 738)},  # Sikkim
+    {"code": "AR", "range": range(790, 793)},  # Arunachal Pradesh
+    {"code": "NL", "range": range(797, 799)},  # Nagaland
+    {"code": "MN", "range": range(795, 796)},  # Manipur
+    {"code": "MZ", "range": range(796, 797)},  # Mizoram
+    {"code": "TR", "range": range(799, 800)},  # Tripura
+    {"code": "ML", "range": range(793, 795)},  # Meghalaya
+    {"code": "AS", "range": range(781, 789)},  # Assam
+    {"code": "WB", "range": range(700, 744)},  # West Bengal
+    {"code": "JH", "range": range(813, 836)},  # Jharkhand
+    {"code": "OR", "range": range(751, 771)},  # Odisha
+    {"code": "CT", "range": range(490, 498)},  # Chhattisgarh
+    {"code": "MP", "range": range(450, 489)},  # Madhya Pradesh
+    {"code": "GJ", "range": range(360, 397)},  # Gujarat
+    {"code": "DN", "range": [362, 396]},  # Daman and Diu & Dadra and Nagar Haveli
+    {"code": "MH", "range": range(400, 446)},  # Maharashtra
+    {"code": "KA", "range": range(560, 592)},  # Karnataka
+    {"code": "GA", "range": range(403, 404)},  # Goa
+    {"code": "LD", "range": range(682, 683)},  # Lakshadweep
+    {"code": "KL", "range": range(670, 696)},  # Kerala
+    {"code": "TN", "range": range(600, 644)},  # Tamil Nadu
+    {"code": "PY", "range": [533, 605, 607, 609]},  # Puducherry
+    {"code": "AN", "range": range(744, 745)},  # Andaman and Nicobar
+    {"code": "TG", "range": range(500, 510)},  # Telangana
+    {"code": "AP", "range": range(500, 536)},  # Andhra Pradesh
+    {"code": "LA", "range": [194]},  #Ladakh
+]
